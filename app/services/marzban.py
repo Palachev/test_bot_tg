@@ -68,6 +68,7 @@ class MarzbanService:
         username: str,
         expire_at: datetime,
         traffic_gb: float | None = None,
+        traffic_reset_period: str | None = None,
         proxy: str | None = None,
         flow: str | None = None,
         inbounds: list[str] | None = None,
@@ -78,6 +79,8 @@ class MarzbanService:
         }
         if traffic_gb:
             payload["data_limit"] = int(traffic_gb * 1024**3)
+        if traffic_reset_period:
+            payload["data_limit_reset"] = traffic_reset_period
         if proxy:
             proxy_settings: dict[str, Any] = {}
             if flow:
@@ -94,6 +97,21 @@ class MarzbanService:
 
     async def update_user_expire(self, username: str, expire_at: datetime) -> dict[str, Any]:
         payload = {"expire": int(expire_at.timestamp())}
+        return await self._request("PUT", f"/api/user/{username}", json=payload)
+
+    async def update_user_traffic_policy(
+        self,
+        username: str,
+        traffic_gb: float | None = None,
+        traffic_reset_period: str | None = None,
+    ) -> dict[str, Any]:
+        payload: dict[str, Any] = {}
+        if traffic_gb is not None:
+            payload["data_limit"] = int(traffic_gb * 1024**3)
+        if traffic_reset_period:
+            payload["data_limit_reset"] = traffic_reset_period
+        if not payload:
+            return {}
         return await self._request("PUT", f"/api/user/{username}", json=payload)
 
     async def get_user(self, username: str) -> dict[str, Any]:
