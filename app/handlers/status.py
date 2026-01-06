@@ -24,9 +24,6 @@ async def show_status(
         text = "Подписка не активна. Оформи доступ за пару минут."
         if not trial_used:
             text = f"{text}\n\nМожно активировать пробный период."
-        if bot_username:
-            ref_link = f"https://t.me/{bot_username}?start={message.from_user.id}"
-            text = f"{text}\n\nПригласи друга: {ref_link}"
         await message.answer(text, reply_markup=renew_keyboard())
         return
     text = _format_status_text(user, marzban_user)
