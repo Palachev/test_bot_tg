@@ -119,12 +119,16 @@ class SubscriptionService:
         effective_base = max(current_expires_at, now)
         target_expires_at = effective_base + tariff.duration + bonus
 
+        traffic_limit = traffic_limit_gb or self.settings.traffic_limit_gb or DEFAULT_TRAFFIC_LIMIT_GB
+        traffic_reset_period = self.settings.traffic_reset_period or "month"
+
         if marzban_user is None:
             try:
                 marzban_user = await self.marzban.create_user(
                     username,
                     target_expires_at,
-                    traffic_limit_gb or DEFAULT_TRAFFIC_LIMIT_GB,
+                    traffic_limit,
+                    traffic_reset_period,
                     proxy=self.settings.marzban_proxy or None,
                     flow=self.settings.marzban_flow or None,
                     inbounds=self.settings.marzban_inbounds or None,
@@ -169,6 +173,11 @@ class SubscriptionService:
                     telegram_id,
                     username,
                 )
+            await self.marzban.update_user_traffic_policy(
+                username,
+                traffic_limit,
+                traffic_reset_period,
+            )
 
         existing_link = existing.subscription_link if existing else None
         link = existing_link or await self._fetch_subscription_link(username, marzban_user)
@@ -190,7 +199,7 @@ class SubscriptionService:
             marzban_uuid=marzban_uuid or (existing.marzban_uuid if existing else ""),
             subscription_expires_at=target_expires_at,
             subscription_link=existing_link or link or (existing.subscription_link if existing else None),
-            traffic_limit_gb=existing.traffic_limit_gb if existing else (traffic_limit_gb or DEFAULT_TRAFFIC_LIMIT_GB),
+            traffic_limit_gb=existing.traffic_limit_gb if existing else traffic_limit,
             trial_used=existing.trial_used if existing else trial_used_meta,
             referrer_telegram_id=existing.referrer_telegram_id if existing else referrer_meta,
             referral_bonus_applied=existing.referral_bonus_applied if existing else bonus_applied_meta,
