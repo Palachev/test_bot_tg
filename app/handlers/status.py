@@ -45,6 +45,11 @@ def _format_status_text(user: User, marzban_user: dict[str, object] | None) -> s
     expires_at = user.subscription_expires_at
     traffic_limit_gb = user.traffic_limit_gb
     is_stale = user.is_stale
+    status_value = marzban_user.get("status") if marzban_user else None
+    if not isinstance(status_value, str) or not status_value:
+        status_value = "active" if not is_stale else "unknown"
+    status_label = "активна" if status_value == "active" else status_value
+
     expires_text = "—"
     if expires_at:
         expires_text = expires_at.strftime("%d.%m.%Y")
@@ -60,13 +65,13 @@ def _format_status_text(user: User, marzban_user: dict[str, object] | None) -> s
     traffic_left_gb = max(traffic_limit_gb - traffic_used_gb, 0)
 
     traffic_line = f"{traffic_used_gb:.2f} / {traffic_limit_gb:.0f} GB"
-    traffic_left_label = f"{traffic_left_gb:.2f} GB"
     if traffic_limit_gb <= 0:
         traffic_line = f"{traffic_used_gb:.2f} GB"
         traffic_left_gb = 0
-        traffic_left_label = "—"
 
     extras: list[str] = []
+    if traffic_limit_gb > 0:
+        extras.append(f"Остаток: {traffic_left_gb:.2f} GB")
     if is_stale:
         extras.append("Данные обновятся при следующей синхронизации.")
 
@@ -75,10 +80,9 @@ def _format_status_text(user: User, marzban_user: dict[str, object] | None) -> s
         extras_text = "\n" + "\n".join(extras)
 
     return (
-        "📊 Статус-дашборд\n"
+        "🛡 Статус доступа\n"
         "━━━━━━━━━━━━\n"
+        f"Статус: {status_label}\n"
         f"Трафик: {traffic_line}\n"
-        f"Остаток: {traffic_left_label}\n"
-        f"Срок: {expires_text}"
-        f"{extras_text}"
+        f"Действует до: {expires_text}{extras_text}"
     )
