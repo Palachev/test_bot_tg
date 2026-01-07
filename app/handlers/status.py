@@ -65,13 +65,13 @@ def _format_status_text(user: User, marzban_user: dict[str, object] | None) -> s
     traffic_left_gb = max(traffic_limit_gb - traffic_used_gb, 0)
 
     traffic_line = f"{traffic_used_gb:.2f} / {traffic_limit_gb:.0f} GB"
+    traffic_left_label = f"{traffic_left_gb:.2f} GB"
     if traffic_limit_gb <= 0:
         traffic_line = f"{traffic_used_gb:.2f} GB"
         traffic_left_gb = 0
+        traffic_left_label = "—"
 
     extras: list[str] = []
-    if traffic_limit_gb > 0:
-        extras.append(f"Остаток: {traffic_left_gb:.2f} GB")
     if is_stale:
         extras.append("Данные обновятся при следующей синхронизации.")
 
@@ -80,9 +80,10 @@ def _format_status_text(user: User, marzban_user: dict[str, object] | None) -> s
         extras_text = "\n" + "\n".join(extras)
 
     return (
-        "🛡 Статус доступа\n"
+        "📊 Статус-дашборд\n"
         "━━━━━━━━━━━━\n"
-        f"Статус: {status_label}\n"
         f"Трафик: {traffic_line}\n"
-        f"Действует до: {expires_text}{extras_text}"
+        f"Остаток: {traffic_left_label}\n"
+        f"Срок: {expires_text}"
+        f"{extras_text}"
     )
