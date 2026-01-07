@@ -33,6 +33,8 @@ class Settings(BaseSettings):
     webhook_path: str = "/payment/webhook"
     base_subscription_days: int = 30
     referral_bonus_days: int = 7
+    traffic_limit_gb: float = 300
+    traffic_reset_period: str = "month"
 
     @field_validator("telegram_admin_ids", mode="before")
     def parse_admin_ids(cls, value: object) -> list[int]:

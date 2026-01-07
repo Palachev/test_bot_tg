@@ -10,7 +10,7 @@ from aiogram import Bot, Dispatcher
 
 from app.config import Settings
 from app.db import Database
-from app.handlers import admin, help, install, purchase, referral, renew, start, status, trial
+from app.handlers import admin, help, install, purchase, renew, start, status, trial
 from app.repositories.payment_repository import PaymentRepository
 from app.repositories.referral_repository import ReferralRepository
 from app.repositories.user_repository import UserRepository
@@ -68,7 +68,6 @@ async def main() -> None:
     dp.include_router(install.router)
     dp.include_router(status.router)
     dp.include_router(renew.router)
-    dp.include_router(referral.router)
     dp.include_router(trial.router)
     dp.include_router(help.router)
     dp.include_router(admin.router)
