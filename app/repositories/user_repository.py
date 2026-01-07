@@ -22,9 +22,11 @@ class UserRepository:
                 traffic_limit_gb,
                 trial_used,
                 referrer_telegram_id,
-                referral_bonus_applied
+                referral_bonus_applied,
+                reminder_3d_sent,
+                reminder_1d_sent
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(telegram_id) DO UPDATE SET
                 marzban_username=excluded.marzban_username,
                 marzban_uuid=excluded.marzban_uuid,
@@ -33,7 +35,9 @@ class UserRepository:
                 traffic_limit_gb=excluded.traffic_limit_gb,
                 trial_used=excluded.trial_used,
                 referrer_telegram_id=excluded.referrer_telegram_id,
-                referral_bonus_applied=excluded.referral_bonus_applied
+                referral_bonus_applied=excluded.referral_bonus_applied,
+                reminder_3d_sent=excluded.reminder_3d_sent,
+                reminder_1d_sent=excluded.reminder_1d_sent
             """,
             user.telegram_id,
             user.marzban_username,
@@ -44,6 +48,8 @@ class UserRepository:
             int(user.trial_used),
             user.referrer_telegram_id,
             int(user.referral_bonus_applied),
+            int(user.reminder_3d_sent),
+            int(user.reminder_1d_sent),
         )
         await self.register_telegram_user(user.telegram_id)
 
@@ -59,7 +65,9 @@ class UserRepository:
                 u.traffic_limit_gb,
                 COALESCE(t.trial_used, u.trial_used, 0),
                 COALESCE(t.referrer_telegram_id, u.referrer_telegram_id),
-                COALESCE(t.referral_bonus_applied, u.referral_bonus_applied, 0)
+                COALESCE(t.referral_bonus_applied, u.referral_bonus_applied, 0),
+                u.reminder_3d_sent,
+                u.reminder_1d_sent
             FROM users u
             LEFT JOIN telegram_users t ON t.telegram_id = u.telegram_id
             WHERE u.telegram_id = ?
@@ -81,6 +89,8 @@ class UserRepository:
             trial_used=bool(row[6]),
             referrer_telegram_id=row[7],
             referral_bonus_applied=bool(row[8]),
+            reminder_3d_sent=bool(row[9]),
+            reminder_1d_sent=bool(row[10]),
         )
 
     async def update_subscription(self, telegram_id: int, expires_at: datetime | None, link: str | None) -> None:
@@ -293,6 +303,83 @@ class UserRepository:
             now_iso,
         )
         return [row[0] for row in rows]
+
+    async def list_paid_users(self) -> list[tuple[int, str]]:
+        rows = await self._db.fetchall(
+            """
+            SELECT telegram_id, MIN(created_at) as first_paid
+            FROM payments
+            WHERE status IN ('paid', 'paid_pending')
+            GROUP BY telegram_id
+            ORDER BY first_paid DESC
+            """
+        )
+        return [(row[0], row[1]) for row in rows]
+
+    async def list_trial_only_users(self) -> list[tuple[int, str]]:
+        rows = await self._db.fetchall(
+            """
+            SELECT t.telegram_id, t.created_at
+            FROM telegram_users t
+            WHERE t.trial_used = 1
+              AND NOT EXISTS (
+                SELECT 1 FROM payments p
+                WHERE p.telegram_id = t.telegram_id
+                  AND p.status IN ('paid', 'paid_pending')
+              )
+            ORDER BY t.created_at DESC
+            """
+        )
+        return [(row[0], row[1]) for row in rows]
+
+    async def list_active_subscription_ids(self, now_iso: str) -> list[int]:
+        rows = await self._db.fetchall(
+            """
+            SELECT telegram_id
+            FROM users
+            WHERE subscription_expires_at IS NOT NULL AND subscription_expires_at > ?
+            """,
+            now_iso,
+        )
+        return [row[0] for row in rows]
+
+    async def list_inactive_subscription_ids(self, now_iso: str) -> list[int]:
+        rows = await self._db.fetchall(
+            """
+            WITH all_users AS (
+                SELECT telegram_id FROM telegram_users
+                UNION
+                SELECT telegram_id FROM users
+            )
+            SELECT a.telegram_id
+            FROM all_users a
+            LEFT JOIN users u ON u.telegram_id = a.telegram_id
+            WHERE u.subscription_expires_at IS NULL OR u.subscription_expires_at <= ?
+            """,
+            now_iso,
+        )
+        return [row[0] for row in rows]
+
+    async def list_expiring_users(self, now_iso: str, until_iso: str) -> list[tuple[int, str, bool, bool]]:
+        rows = await self._db.fetchall(
+            """
+            SELECT telegram_id, subscription_expires_at, reminder_3d_sent, reminder_1d_sent
+            FROM users
+            WHERE subscription_expires_at IS NOT NULL
+              AND subscription_expires_at > ?
+              AND subscription_expires_at <= ?
+            """,
+            now_iso,
+            until_iso,
+        )
+        return [(row[0], row[1], bool(row[2]), bool(row[3])) for row in rows]
+
+    async def mark_reminder_sent(self, telegram_id: int, days: int) -> None:
+        column = "reminder_3d_sent" if days == 3 else "reminder_1d_sent"
+        await self._db.execute(
+            f"UPDATE users SET {column} = 1 WHERE telegram_id = ?",
+            telegram_id,
+        )
 
     async def register_telegram_user(self, telegram_id: int) -> None:
         await self._db.execute(

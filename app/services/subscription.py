@@ -203,6 +203,8 @@ class SubscriptionService:
             trial_used=existing.trial_used if existing else trial_used_meta,
             referrer_telegram_id=existing.referrer_telegram_id if existing else referrer_meta,
             referral_bonus_applied=existing.referral_bonus_applied if existing else bonus_applied_meta,
+            reminder_3d_sent=False,
+            reminder_1d_sent=False,
         )
         await self.user_repo.upsert_user(user)
         return user
@@ -267,6 +269,8 @@ class SubscriptionService:
                     trial_used=user.trial_used,
                     referrer_telegram_id=user.referrer_telegram_id,
                     referral_bonus_applied=user.referral_bonus_applied,
+                    reminder_3d_sent=user.reminder_3d_sent,
+                    reminder_1d_sent=user.reminder_1d_sent,
                 ),
                 marzban_user,
             )
@@ -289,6 +293,8 @@ class SubscriptionService:
                     trial_used=user.trial_used,
                     referrer_telegram_id=user.referrer_telegram_id,
                     referral_bonus_applied=user.referral_bonus_applied,
+                    reminder_3d_sent=user.reminder_3d_sent,
+                    reminder_1d_sent=user.reminder_1d_sent,
                 ),
                 None,
             )

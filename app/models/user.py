@@ -16,3 +16,5 @@ class User:
     trial_used: bool = False
     referrer_telegram_id: int | None = None
     referral_bonus_applied: bool = False
+    reminder_3d_sent: bool = False
+    reminder_1d_sent: bool = False

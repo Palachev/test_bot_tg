@@ -5,6 +5,7 @@ from aiogram.fsm.storage.memory import MemoryStorage
 
 import logging
 import asyncio
+from contextlib import suppress
 
 from aiogram import Bot, Dispatcher
 
@@ -18,6 +19,7 @@ from app.services.context import DependencyMiddleware
 from app.services.marzban import MarzbanService
 from app.services.payments import PaymentService
 from app.services.referral import ReferralService
+from app.services.reminders import reminder_loop
 from app.services.subscription import SubscriptionService
 
 logging.basicConfig(level=logging.INFO)
@@ -72,7 +74,13 @@ async def main() -> None:
     dp.include_router(help.router)
     dp.include_router(admin.router)
 
-    await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())
+    reminder_task = asyncio.create_task(reminder_loop(bot, user_repo))
+    try:
+        await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())
+    finally:
+        reminder_task.cancel()
+        with suppress(asyncio.CancelledError):
+            await reminder_task
 
 
 if __name__ == "__main__":
