@@ -10,42 +10,34 @@ router = Router()
 
 PLATFORM_GUIDES = {
     "android": {
-        "app": "HApp Proxy",
-        "url": "https://happ.pro",
+        "app": "Happ Proxy",
+        "url": "https://play.google.com/store/apps/details?id=com.happproxy&pcampaignid=web_share",
         "steps": [
-            "Установи HApp Proxy",
-            "Открой приложение и нажми +",
-            "Вставь ссылку-подписку из бота",
+            "Установи Happ Proxy",
             "Нажми «Подключиться»",
         ],
     },
     "ios": {
-        "app": "HApp Proxy",
-        "url": "https://happ.pro",
+        "app": "Happ Proxy",
+        "url": "https://apps.apple.com/us/app/happ-proxy-utility/id6504287215",
         "steps": [
-            "Установи HApp Proxy",
-            "Открой приложение и нажми +",
-            "Вставь ссылку-подписку из бота",
+            "Установи Happ Proxy",
             "Нажми «Подключиться»",
         ],
     },
     "windows": {
-        "app": "HApp Proxy",
+        "app": "Happ Proxy",
         "url": "https://happ.pro",
         "steps": [
-            "Установи HApp Proxy",
-            "Открой приложение и нажми +",
-            "Вставь ссылку-подписку из бота",
+            "Установи Happ Proxy",
             "Нажми «Подключиться»",
         ],
     },
     "macos": {
-        "app": "HApp Proxy",
+        "app": "Happ Proxy",
         "url": "https://happ.pro",
         "steps": [
-            "Установи HApp Proxy",
-            "Открой приложение и нажми +",
-            "Вставь ссылку-подписку из бота",
+            "Установи Happ Proxy",
             "Нажми «Подключиться»",
         ],
     },
