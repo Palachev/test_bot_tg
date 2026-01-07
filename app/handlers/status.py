@@ -45,6 +45,11 @@ def _format_status_text(user: User, marzban_user: dict[str, object] | None) -> s
     expires_at = user.subscription_expires_at
     traffic_limit_gb = user.traffic_limit_gb
     is_stale = user.is_stale
+    status_value = marzban_user.get("status") if marzban_user else None
+    if not isinstance(status_value, str) or not status_value:
+        status_value = "active" if not is_stale else "unknown"
+    status_label = "активна" if status_value == "active" else status_value
+
     expires_text = "—"
     if expires_at:
         expires_text = expires_at.strftime("%d.%m.%Y")
