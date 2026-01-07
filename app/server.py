@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-import html
-
 import aiohttp
 from aiohttp import web
 from aiogram import Bot
 
+from app.keyboards.common import connection_keyboard
 from app.services.payments import PaymentService
 from app.services.subscription import SubscriptionService
 
@@ -61,11 +60,17 @@ class WebhookApp:
                 "Оплата прошла успешно, но ссылка на подписку пока не готова. Напиши в поддержку.",
             )
             return
-        safe_link = html.escape(subscription_link)
+        keyboard = connection_keyboard(subscription_link)
+        if not keyboard:
+            await self.bot.send_message(
+                telegram_id,
+                "Оплата прошла успешно, но ссылка на подписку пока не готова. Напиши в поддержку.",
+            )
+            return
         text = (
-            "✅ Оплата подтверждена!\n\n"
-            "Вот твоя ссылка для подключения:\n"
-            f"<code>{safe_link}</code>\n\n"
-            "Инструкция по установке доступна в меню «📱 Установка»."
+            "🛡 DagDev VPN\n"
+            "━━━━━━━━━━━━\n"
+            "Your VPN is ready.\n"
+            "Tap the button below to connect."
         )
-        await self.bot.send_message(telegram_id, text)
+        await self.bot.send_message(telegram_id, text, reply_markup=keyboard)

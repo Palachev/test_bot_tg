@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 from datetime import datetime
+from pathlib import Path
+import tempfile
 
 from aiogram import F, Router
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import CallbackQuery, Message
+from aiogram.types.input_file import FSInputFile
 from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError
 
 from app.config import Settings
@@ -38,6 +41,26 @@ async def _render_stats(user_repo: UserRepository, payment_repo: PaymentReposito
         f"Оплат успешно: {paid_count}\n"
         f"Выручка (в валюте): {paid_total:.2f}"
     )
+
+
+def _build_export_text(title: str, rows: list[tuple[int, str]]) -> str:
+    lines = [title, ""]
+    if not rows:
+        return f"{title}\n\nНет данных."
+    for idx, (telegram_id, created_at) in enumerate(rows, start=1):
+        lines.append(f"{idx}. {telegram_id} ({created_at})")
+    return "\n".join(lines)
+
+
+async def _send_export_file(message: Message, title: str, rows: list[tuple[int, str]]) -> None:
+    text = _build_export_text(title, rows)
+    with tempfile.NamedTemporaryFile("w", encoding="utf-8", delete=False, suffix=".txt") as tmp_file:
+        tmp_file.write(text)
+        tmp_path = Path(tmp_file.name)
+    try:
+        await message.answer_document(FSInputFile(tmp_path), caption=title)
+    finally:
+        tmp_path.unlink(missing_ok=True)
 
 
 @router.message(Command("admin"))
@@ -101,7 +124,7 @@ async def admin_refresh(
     await callback.answer()
 
 
-@router.callback_query(F.data == "admin:broadcast")
+@router.callback_query(F.data.startswith("admin:broadcast:"))
 async def admin_broadcast_start(
     callback: CallbackQuery,
     settings: Settings,
@@ -110,9 +133,16 @@ async def admin_broadcast_start(
     if not _is_admin(callback.from_user.id, settings):
         await callback.answer("Нет доступа.", show_alert=True)
         return
+    target = callback.data.split(":", maxsplit=2)[2]
+    await state.update_data(broadcast_target=target)
     await state.set_state(BroadcastState.waiting_message)
+    target_label = {
+        "all": "всем пользователям",
+        "active": "пользователям с активной подпиской",
+        "inactive": "пользователям без активной подписки",
+    }.get(target, "всем пользователям")
     await callback.message.edit_text(
-        "Отправьте сообщение для рассылки всем пользователям. Можно отправить текст, фото или файл.",
+        f"Отправьте сообщение для рассылки {target_label}. Можно отправить текст, фото или файл.",
         reply_markup=admin_broadcast_keyboard(),
     )
     await callback.answer()
@@ -162,7 +192,15 @@ async def admin_broadcast_send(
     if not _is_admin(message.from_user.id, settings):
         await message.answer("Доступ запрещён.")
         return
-    user_ids = await user_repo.list_telegram_ids()
+    data = await state.get_data()
+    target = data.get("broadcast_target", "all")
+    now_iso = datetime.utcnow().isoformat()
+    if target == "active":
+        user_ids = await user_repo.list_active_subscription_ids(now_iso)
+    elif target == "inactive":
+        user_ids = await user_repo.list_inactive_subscription_ids(now_iso)
+    else:
+        user_ids = await user_repo.list_telegram_ids()
     success = 0
     failed = 0
     for user_id in user_ids:
@@ -179,3 +217,31 @@ async def admin_broadcast_send(
         f"Ошибок: {failed}",
         reply_markup=admin_panel_keyboard(),
     )
+
+
+@router.callback_query(F.data == "admin:export:paid")
+async def admin_export_paid(
+    callback: CallbackQuery,
+    settings: Settings,
+    user_repo: UserRepository,
+) -> None:
+    if not _is_admin(callback.from_user.id, settings):
+        await callback.answer("Нет доступа.", show_alert=True)
+        return
+    rows = await user_repo.list_paid_users()
+    await _send_export_file(callback.message, "Купили VPN", rows)
+    await callback.answer()
+
+
+@router.callback_query(F.data == "admin:export:trial")
+async def admin_export_trial(
+    callback: CallbackQuery,
+    settings: Settings,
+    user_repo: UserRepository,
+) -> None:
+    if not _is_admin(callback.from_user.id, settings):
+        await callback.answer("Нет доступа.", show_alert=True)
+        return
+    rows = await user_repo.list_trial_only_users()
+    await _send_export_file(callback.message, "Пробный период", rows)
+    await callback.answer()
