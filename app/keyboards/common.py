@@ -52,3 +52,18 @@ def connection_keyboard(subscription_link: str) -> InlineKeyboardMarkup | None:
             [InlineKeyboardButton(text="⬅️ Back", callback_data="nav:back")],
         ]
     )
+
+
+def install_connection_keyboard(subscription_link: str | None) -> InlineKeyboardMarkup:
+    deeplink = build_happ_deeplink(subscription_link or "")
+    connect_button: InlineKeyboardButton
+    if deeplink:
+        connect_button = InlineKeyboardButton(text="🔗 Подключиться", url=deeplink)
+    else:
+        connect_button = InlineKeyboardButton(text="🔗 Подключиться", callback_data="install:connect_missing")
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="📥 Установить HApp Proxy", url="https://happ.pro")],
+            [connect_button],
+        ]
+    )
