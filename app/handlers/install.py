@@ -3,49 +3,50 @@ from __future__ import annotations
 from aiogram import F, Router
 from aiogram.types import CallbackQuery, Message
 
-from app.keyboards.common import platform_keyboard
+from app.keyboards.common import install_connection_keyboard, platform_keyboard
+from app.services.subscription import SubscriptionService
 
 router = Router()
 
 PLATFORM_GUIDES = {
     "android": {
-        "app": "v2rayNG",
-        "url": "https://play.google.com/store/apps/details?id=com.v2ray.ang",
+        "app": "HApp Proxy",
+        "url": "https://happ.pro",
         "steps": [
-            "Скачай v2rayNG из Google Play",
-            "Нажми + и выбери 'Добавить из ссылки'",
-            "Вставь подписку, которую пришлёт бот",
-            "Выбери сервер Fast или Mobile и нажми Connect",
+            "Установи HApp Proxy",
+            "Открой приложение и нажми +",
+            "Вставь ссылку-подписку из бота",
+            "Нажми «Подключиться»",
         ],
     },
     "ios": {
-        "app": "Streisand",
-        "url": "https://apps.apple.com/app/streisand/id6450534064",
+        "app": "HApp Proxy",
+        "url": "https://happ.pro",
         "steps": [
-            "Скачай Streisand в App Store",
-            "Нажми 'Add from link'",
-            "Вставь ссылку-подписку",
-            "Нажми на понравившийся сервер",
+            "Установи HApp Proxy",
+            "Открой приложение и нажми +",
+            "Вставь ссылку-подписку из бота",
+            "Нажми «Подключиться»",
         ],
     },
     "windows": {
-        "app": "v2rayN",
-        "url": "https://github.com/2dust/v2rayN/releases",
+        "app": "HApp Proxy",
+        "url": "https://happ.pro",
         "steps": [
-            "Скачай архив v2rayN, распакуй и запусти v2rayN.exe",
-            "Добавь подписку через кнопку '订阅' -> '订阅设置'",
-            "Вставь ссылку и обнови список серверов",
-            "Двойной клик по серверу для подключения",
+            "Установи HApp Proxy",
+            "Открой приложение и нажми +",
+            "Вставь ссылку-подписку из бота",
+            "Нажми «Подключиться»",
         ],
     },
     "macos": {
-        "app": "FoXray",
-        "url": "https://apps.apple.com/app/foxray/id6448898396",
+        "app": "HApp Proxy",
+        "url": "https://happ.pro",
         "steps": [
-            "Установи FoXray из App Store",
-            "Нажми + и выбери 'Import from URL'",
-            "Вставь ссылку-подписку",
-            "Выбери сервер Fast, если не работает — Mobile",
+            "Установи HApp Proxy",
+            "Открой приложение и нажми +",
+            "Вставь ссылку-подписку из бота",
+            "Нажми «Подключиться»",
         ],
     },
 }
@@ -57,15 +58,20 @@ async def pick_platform(message: Message) -> None:
 
 
 @router.callback_query(F.data.startswith("install:"))
-async def send_guide(callback: CallbackQuery) -> None:
+async def send_guide(callback: CallbackQuery, subscription_service: SubscriptionService) -> None:
     platform = callback.data.split(":", maxsplit=1)[1]
+    if platform == "connect_missing":
+        await callback.message.answer("Подключение появится после оплаты или активации пробного периода.")
+        await callback.answer()
+        return
     guide = PLATFORM_GUIDES[platform]
-    steps = "\n".join([f"{idx+1}. {step}" for idx, step in enumerate(guide["steps"] )])
+    steps = "\n".join([f"{idx+1}. {step}" for idx, step in enumerate(guide["steps"])])
+    user = await subscription_service.get_status(callback.from_user.id)
     text = (
         f"{guide['app']}\n{guide['url']}\n\n"
         "Как подключить:\n"
         f"{steps}\n\n"
         "После оплаты бот пришлёт твою персональную ссылку подписки."
     )
-    await callback.message.answer(text)
+    await callback.message.answer(text, reply_markup=install_connection_keyboard(user.subscription_link if user else None))
     await callback.answer()

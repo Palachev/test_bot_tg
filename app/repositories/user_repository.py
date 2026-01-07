@@ -236,7 +236,62 @@ class UserRepository:
             SELECT telegram_id FROM users
             """
         )
-        rows = await self._db.fetchall("SELECT telegram_id FROM telegram_users")
+        return [row[0] for row in rows]
+
+    async def list_paid_users(self) -> list[tuple[int, str]]:
+        rows = await self._db.fetchall(
+            """
+            SELECT telegram_id, MIN(created_at) as first_paid
+            FROM payments
+            WHERE status IN ('paid', 'paid_pending')
+            GROUP BY telegram_id
+            ORDER BY first_paid DESC
+            """
+        )
+        return [(row[0], row[1]) for row in rows]
+
+    async def list_trial_only_users(self) -> list[tuple[int, str]]:
+        rows = await self._db.fetchall(
+            """
+            SELECT t.telegram_id, t.created_at
+            FROM telegram_users t
+            WHERE t.trial_used = 1
+              AND NOT EXISTS (
+                SELECT 1 FROM payments p
+                WHERE p.telegram_id = t.telegram_id
+                  AND p.status IN ('paid', 'paid_pending')
+              )
+            ORDER BY t.created_at DESC
+            """
+        )
+        return [(row[0], row[1]) for row in rows]
+
+    async def list_active_subscription_ids(self, now_iso: str) -> list[int]:
+        rows = await self._db.fetchall(
+            """
+            SELECT telegram_id
+            FROM users
+            WHERE subscription_expires_at IS NOT NULL AND subscription_expires_at > ?
+            """,
+            now_iso,
+        )
+        return [row[0] for row in rows]
+
+    async def list_inactive_subscription_ids(self, now_iso: str) -> list[int]:
+        rows = await self._db.fetchall(
+            """
+            WITH all_users AS (
+                SELECT telegram_id FROM telegram_users
+                UNION
+                SELECT telegram_id FROM users
+            )
+            SELECT a.telegram_id
+            FROM all_users a
+            LEFT JOIN users u ON u.telegram_id = a.telegram_id
+            WHERE u.subscription_expires_at IS NULL OR u.subscription_expires_at <= ?
+            """,
+            now_iso,
+        )
         return [row[0] for row in rows]
 
     async def register_telegram_user(self, telegram_id: int) -> None:
@@ -244,4 +299,3 @@ class UserRepository:
             "INSERT INTO telegram_users (telegram_id) VALUES (?) ON CONFLICT(telegram_id) DO NOTHING",
             telegram_id,
         )
-

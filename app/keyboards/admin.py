@@ -7,7 +7,11 @@ def admin_panel_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [InlineKeyboardButton(text="📈 Статистика", callback_data="admin:stats")],
-            [InlineKeyboardButton(text="📣 Рассылка", callback_data="admin:broadcast")],
+            [InlineKeyboardButton(text="📣 Рассылка всем", callback_data="admin:broadcast:all")],
+            [InlineKeyboardButton(text="✅ Рассылка активным", callback_data="admin:broadcast:active")],
+            [InlineKeyboardButton(text="🚫 Рассылка без подписки", callback_data="admin:broadcast:inactive")],
+            [InlineKeyboardButton(text="📄 Купившие VPN (txt)", callback_data="admin:export:paid")],
+            [InlineKeyboardButton(text="🧪 Пробный период (txt)", callback_data="admin:export:trial")],
             [InlineKeyboardButton(text="🔄 Обновить", callback_data="admin:refresh")],
         ]
     )
