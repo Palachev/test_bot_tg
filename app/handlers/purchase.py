@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from decimal import Decimal, ROUND_HALF_UP
 
 from aiogram import F, Router
 from aiogram.exceptions import TelegramBadRequest
@@ -33,6 +34,14 @@ async def start_payment(
 ) -> None:
     tariff_code = callback.data.split(":", maxsplit=1)[1]
     tariff = subscription_service.get_tariff(tariff_code)
+    amount_minor_units = _to_minor_units(tariff.price, settings.payment_currency)
+    if amount_minor_units <= 0:
+        await callback.message.answer(
+            "Не удалось открыть оплату: сумма должна быть больше 0. "
+            "Проверь цены в тарифах."
+        )
+        await callback.answer()
+        return
     invoice = await payment_service.create_invoice(callback.from_user.id, tariff_code, tariff.price)
     try:
         await callback.message.answer_invoice(
@@ -51,6 +60,13 @@ async def start_payment(
             f"{exc.message}"
         )
     await callback.answer()
+
+
+def _to_minor_units(amount: float, currency: str) -> int:
+    minor_units = {"RUB": 2}
+    exponent = minor_units.get(currency.upper(), 2)
+    value = Decimal(str(amount)).quantize(Decimal(f"1e-{exponent}"), rounding=ROUND_HALF_UP)
+    return int(value * (10**exponent))
 
 
 @router.pre_checkout_query()
