@@ -24,7 +24,12 @@ async def choose_plan(message: Message) -> None:
 
 
 @router.callback_query(F.data.startswith("buy:"))
-async def start_payment(callback: CallbackQuery, payment_service: PaymentService, subscription_service: SubscriptionService) -> None:
+async def start_payment(
+    callback: CallbackQuery,
+    payment_service: PaymentService,
+    subscription_service: SubscriptionService,
+    settings: Settings,
+) -> None:
     tariff_code = callback.data.split(":", maxsplit=1)[1]
     tariff = subscription_service.get_tariff(tariff_code)
     invoice = await payment_service.create_invoice(callback.from_user.id, tariff_code, tariff.price)
@@ -32,9 +37,9 @@ async def start_payment(callback: CallbackQuery, payment_service: PaymentService
         title="VPN подписка",
         description=f"Тариф: {tariff.title}",
         payload=invoice.invoice_id,
-        provider_token="",
-        currency="XTR",
-        prices=[LabeledPrice(label=tariff.title, amount=int(invoice.amount))],
+        provider_token=settings.payment_provider_key,
+        currency="RUB",
+        prices=[LabeledPrice(label=tariff.title, amount=int(round(invoice.amount * 100)))],
     )
     await callback.answer()
 
@@ -58,16 +63,16 @@ async def handle_successful_payment(
         "vpn_6m": "m6",
         "vpn_12m": "m12",
     }
-    tariff_code = payload_to_tariff.get(payment.invoice_payload)
+    invoice_id = payment.invoice_payload
+    tariff_code = payload_to_tariff.get(invoice_id)
     if not tariff_code:
         await message.answer("Платеж получен, но тариф не найден. Напиши в поддержку.")
         return
-    invoice_id = payment.telegram_payment_charge_id
     await payment_repo.create_invoice(
         invoice_id,
         message.from_user.id,
         tariff_code,
-        float(payment.total_amount),
+        float(payment.total_amount) / 100,
         payment.currency,
     )
     try:
@@ -112,4 +117,3 @@ async def _send_access(message: Message, link: str) -> None:
         "Нажмите кнопку ниже, чтобы подключиться.",
         reply_markup=keyboard,
     )
-
