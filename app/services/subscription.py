@@ -214,7 +214,7 @@ class SubscriptionService:
         invoice = await self.payment_repo.get_invoice(invoice_id)
         if not invoice:
             return None
-        if invoice.status in {"completed", "failed"}:
+        if invoice.status in {"completed", "paid", "failed"}:
             return await self.user_repo.get_by_telegram_id(invoice.telegram_id)
         tariff = self.get_tariff(invoice.tariff_code)
         context_token = set_request_context(
