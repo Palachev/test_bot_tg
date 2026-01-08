@@ -38,7 +38,7 @@ async def start_payment(
         description=f"Тариф: {tariff.title}",
         payload=invoice.invoice_id,
         provider_token=settings.payment_provider_key,
-        currency="RUB",
+        currency=settings.payment_currency,
         prices=[LabeledPrice(label=tariff.title, amount=int(round(invoice.amount * 100)))],
     )
     await callback.answer()
