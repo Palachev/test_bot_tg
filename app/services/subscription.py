@@ -16,6 +16,7 @@ from app.models.user import User
 from app.repositories.payment_repository import PaymentRepository
 from app.repositories.user_repository import UserRepository
 from app.services.marzban import MarzbanService
+from app.services.log_context import set_request_context, reset_request_context
 
 
 class SubscriptionService:
@@ -210,18 +211,27 @@ class SubscriptionService:
         return user
 
     async def process_payment_success(self, invoice_id: str) -> Optional[User]:
-        payment_row = await self.payment_repo.get_payment(invoice_id)
-        if not payment_row:
+        invoice = await self.payment_repo.get_invoice(invoice_id)
+        if not invoice:
             return None
-        invoice_id, telegram_id, tariff_code, amount, currency, status = payment_row
-        marked = await self.payment_repo.complete_or_skip(invoice_id)
-        if not marked:
-            return await self.user_repo.get_by_telegram_id(telegram_id)
-        tariff = self.get_tariff(tariff_code)
-        async with self._user_lock(telegram_id):
-            user = await self.provision_user(telegram_id, tariff)
-            await self._apply_referral_bonus(telegram_id)
-            return user
+        if invoice.status in {"completed", "failed"}:
+            return await self.user_repo.get_by_telegram_id(invoice.telegram_id)
+        tariff = self.get_tariff(invoice.tariff_code)
+        context_token = set_request_context(
+            {
+                "invoice_id": invoice.invoice_id,
+                "telegram_id": str(invoice.telegram_id),
+                "username": f"tg_{invoice.telegram_id}",
+            }
+        )
+        try:
+            async with self._user_lock(invoice.telegram_id):
+                user = await self.provision_user(invoice.telegram_id, tariff)
+                await self._apply_referral_bonus(invoice.telegram_id)
+                await self.payment_repo.mark_completed(invoice.invoice_id, user.subscription_link)
+                return user
+        finally:
+            reset_request_context(context_token)
 
     async def provision_trial(self, telegram_id: int) -> User:
         tariff = Tariff(

@@ -2,35 +2,97 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 import logging
-from typing import Any
+import asyncio
+from typing import Any, Awaitable, Callable
 
 import aiohttp
 
+from app.services.log_context import get_request_context
+
 
 class MarzbanService:
-    def __init__(self, base_url: str, api_key: str):
+    def __init__(
+        self,
+        base_url: str,
+        api_key: str,
+        notify_admin: Callable[[str], Awaitable[None]] | None = None,
+    ):
         self.base_url = base_url.rstrip("/")
         self.api_key = api_key
         self._token: str | None = None
         self._logger = logging.getLogger(__name__)
+        self._session: aiohttp.ClientSession | None = None
+        self._notify_admin = notify_admin
+
+    async def close(self) -> None:
+        if self._session:
+            await self._session.close()
+            self._session = None
+
+    async def _get_session(self) -> aiohttp.ClientSession:
+        if not self._session or self._session.closed:
+            self._session = aiohttp.ClientSession()
+        return self._session
 
     async def _request(self, method: str, path: str, json: dict[str, Any] | None = None) -> dict[str, Any]:
-        for attempt in range(2):
+        context = get_request_context()
+        context_str = f"context={context}" if context else "context=none"
+        retries = 3
+        for attempt in range(retries):
             token = await self._get_token()
             headers = {"Authorization": f"Bearer {token}"} if token else {}
-            async with aiohttp.ClientSession(headers=headers) as session:
-                async with session.request(method, f"{self.base_url}{path}", json=json, timeout=15) as resp:
-                    if resp.status == 401 and self._can_refresh_token() and attempt == 0:
-                        self._token = None
-                        continue
-                    if resp.status >= 400:
+            session = await self._get_session()
+            try:
+                async with session.request(
+                    method,
+                    f"{self.base_url}{path}",
+                    json=json,
+                    timeout=15,
+                    headers=headers,
+                ) as resp:
+                    if resp.status == 401:
+                        if self._can_refresh_token() and attempt == 0:
+                            self._token = None
+                            continue
+                        self._logger.error(
+                            "Marzban auth error %s %s: status=%s %s",
+                            method,
+                            path,
+                            resp.status,
+                            context_str,
+                        )
+                        if self._notify_admin:
+                            await self._notify_admin(
+                                f"⚠️ Marzban auth error ({resp.status}) on {path}."
+                            )
+                        resp.raise_for_status()
+                    if resp.status == 404:
                         body = await resp.text()
                         self._logger.error(
-                            "Marzban API error %s %s: status=%s body=%s",
+                            "Marzban API route not found %s %s: status=%s body=%s %s",
                             method,
                             path,
                             resp.status,
                             body,
+                            context_str,
+                        )
+                        if self._notify_admin:
+                            await self._notify_admin(
+                                f"⚠️ Marzban API route not found ({path})."
+                            )
+                        resp.raise_for_status()
+                    if resp.status in {502, 503, 504} and attempt < retries - 1:
+                        await asyncio.sleep(2**attempt)
+                        continue
+                    if resp.status >= 400:
+                        body = await resp.text()
+                        self._logger.error(
+                            "Marzban API error %s %s: status=%s body=%s %s",
+                            method,
+                            path,
+                            resp.status,
+                            body,
+                            context_str,
                         )
                         resp.raise_for_status()
                     if resp.status == 204:
@@ -39,6 +101,18 @@ class MarzbanService:
                         return await resp.json(content_type=None)
                     except aiohttp.ContentTypeError:
                         return {}
+            except (aiohttp.ClientConnectionError, asyncio.TimeoutError) as exc:
+                if attempt < retries - 1:
+                    await asyncio.sleep(2**attempt)
+                    continue
+                self._logger.error(
+                    "Marzban API connection error %s %s: error=%s %s",
+                    method,
+                    path,
+                    exc,
+                    context_str,
+                )
+                raise
         return {}
 
     async def _get_token(self) -> str:

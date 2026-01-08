@@ -18,6 +18,7 @@ from app.repositories.user_repository import UserRepository
 from app.services.context import DependencyMiddleware
 from app.services.marzban import MarzbanService
 from app.services.payments import PaymentService
+from app.services.payment_retry import payment_retry_loop
 from app.services.referral import ReferralService
 from app.services.reminders import reminder_loop
 from app.services.subscription import SubscriptionService
@@ -34,15 +35,23 @@ async def main() -> None:
     payment_repo = PaymentRepository(db)
     referral_repo = ReferralRepository(db)
 
-    marzban = MarzbanService(settings.marzban_base_url, settings.marzban_api_key)
-    payment_service = PaymentService(settings, payment_repo)
-    referral_service = ReferralService(settings, referral_repo, user_repo)
-    subscription_service = SubscriptionService(settings, user_repo, payment_repo, marzban)
-
     bot = Bot(
         token=settings.telegram_token,
         default=DefaultBotProperties(parse_mode="HTML"),
     )
+
+    async def notify_admins(message: str) -> None:
+        for admin_id in settings.telegram_admin_ids:
+            await bot.send_message(admin_id, message)
+
+    marzban = MarzbanService(
+        settings.marzban_base_url,
+        settings.marzban_api_key,
+        notify_admin=notify_admins,
+    )
+    payment_service = PaymentService(settings, payment_repo)
+    referral_service = ReferralService(settings, referral_repo, user_repo)
+    subscription_service = SubscriptionService(settings, user_repo, payment_repo, marzban)
     dp = Dispatcher(storage=MemoryStorage())
 
     bot_info = await bot.get_me()
@@ -75,12 +84,19 @@ async def main() -> None:
     dp.include_router(admin.router)
 
     reminder_task = asyncio.create_task(reminder_loop(bot, user_repo))
+    retry_task = asyncio.create_task(
+        payment_retry_loop(bot, settings, payment_repo, subscription_service)
+    )
     try:
         await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())
     finally:
         reminder_task.cancel()
+        retry_task.cancel()
         with suppress(asyncio.CancelledError):
             await reminder_task
+        with suppress(asyncio.CancelledError):
+            await retry_task
+        await marzban.close()
 
 
 if __name__ == "__main__":
