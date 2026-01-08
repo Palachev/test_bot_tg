@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 
 from aiogram import F, Router
+from aiogram.exceptions import TelegramBadRequest
 from aiogram.types import CallbackQuery, LabeledPrice, Message, PreCheckoutQuery
 
 from app.config import Settings
@@ -33,14 +34,20 @@ async def start_payment(
     tariff_code = callback.data.split(":", maxsplit=1)[1]
     tariff = subscription_service.get_tariff(tariff_code)
     invoice = await payment_service.create_invoice(callback.from_user.id, tariff_code, tariff.price)
-    await callback.message.answer_invoice(
-        title="VPN подписка",
-        description=f"Тариф: {tariff.title}",
-        payload=invoice.invoice_id,
-        provider_token=settings.payment_provider_key,
-        currency="RUB",
-        prices=[LabeledPrice(label=tariff.title, amount=int(round(invoice.amount * 100)))],
-    )
+    try:
+        await callback.message.answer_invoice(
+            title="VPN подписка",
+            description=f"Тариф: {tariff.title}",
+            payload=invoice.invoice_id,
+            provider_token=settings.payment_provider_key,
+            currency=settings.payment_currency,
+            prices=[LabeledPrice(label=tariff.title, amount=int(round(invoice.amount * 100)))],
+        )
+    except TelegramBadRequest as exc:
+        logger.exception("Failed to create invoice: %s", exc)
+        await callback.message.answer(
+            "Не удалось открыть оплату. Проверь токен провайдера Telegram Payments и валюту."
+        )
     await callback.answer()
 
 
