@@ -119,12 +119,16 @@ class SubscriptionService:
         effective_base = max(current_expires_at, now)
         target_expires_at = effective_base + tariff.duration + bonus
 
+        traffic_limit = traffic_limit_gb or self.settings.traffic_limit_gb or DEFAULT_TRAFFIC_LIMIT_GB
+        traffic_reset_period = self.settings.traffic_reset_period or "month"
+
         if marzban_user is None:
             try:
                 marzban_user = await self.marzban.create_user(
                     username,
                     target_expires_at,
-                    traffic_limit_gb or DEFAULT_TRAFFIC_LIMIT_GB,
+                    traffic_limit,
+                    traffic_reset_period,
                     proxy=self.settings.marzban_proxy or None,
                     flow=self.settings.marzban_flow or None,
                     inbounds=self.settings.marzban_inbounds or None,
@@ -169,6 +173,11 @@ class SubscriptionService:
                     telegram_id,
                     username,
                 )
+            await self.marzban.update_user_traffic_policy(
+                username,
+                traffic_limit,
+                traffic_reset_period,
+            )
 
         existing_link = existing.subscription_link if existing else None
         link = existing_link or await self._fetch_subscription_link(username, marzban_user)
@@ -190,10 +199,12 @@ class SubscriptionService:
             marzban_uuid=marzban_uuid or (existing.marzban_uuid if existing else ""),
             subscription_expires_at=target_expires_at,
             subscription_link=existing_link or link or (existing.subscription_link if existing else None),
-            traffic_limit_gb=existing.traffic_limit_gb if existing else (traffic_limit_gb or DEFAULT_TRAFFIC_LIMIT_GB),
+            traffic_limit_gb=existing.traffic_limit_gb if existing else traffic_limit,
             trial_used=existing.trial_used if existing else trial_used_meta,
             referrer_telegram_id=existing.referrer_telegram_id if existing else referrer_meta,
             referral_bonus_applied=existing.referral_bonus_applied if existing else bonus_applied_meta,
+            reminder_3d_sent=False,
+            reminder_1d_sent=False,
         )
         await self.user_repo.upsert_user(user)
         return user
@@ -226,10 +237,13 @@ class SubscriptionService:
                 traffic_limit_gb=self.TRIAL_TRAFFIC_LIMIT_GB,
             )
 
-    async def get_status(self, telegram_id: int) -> User | None:
+    async def get_status_details(
+        self,
+        telegram_id: int,
+    ) -> tuple[User | None, dict[str, object] | None]:
         user = await self.user_repo.get_by_telegram_id(telegram_id)
         if not user:
-            return None
+            return None, None
         username = user.marzban_username or f"tg_{telegram_id}"
         try:
             marzban_user = await self.marzban.get_user(username)
@@ -243,17 +257,22 @@ class SubscriptionService:
                     expires_at or user.subscription_expires_at,
                     link or user.subscription_link,
                 )
-            return User(
-                telegram_id=user.telegram_id,
-                marzban_username=username,
-                marzban_uuid=user.marzban_uuid,
-                subscription_expires_at=expires_at,
-                subscription_link=link or user.subscription_link,
-                traffic_limit_gb=user.traffic_limit_gb,
-                is_stale=False,
-                trial_used=user.trial_used,
-                referrer_telegram_id=user.referrer_telegram_id,
-                referral_bonus_applied=user.referral_bonus_applied,
+            return (
+                User(
+                    telegram_id=user.telegram_id,
+                    marzban_username=username,
+                    marzban_uuid=user.marzban_uuid,
+                    subscription_expires_at=expires_at,
+                    subscription_link=link or user.subscription_link,
+                    traffic_limit_gb=user.traffic_limit_gb,
+                    is_stale=False,
+                    trial_used=user.trial_used,
+                    referrer_telegram_id=user.referrer_telegram_id,
+                    referral_bonus_applied=user.referral_bonus_applied,
+                    reminder_3d_sent=user.reminder_3d_sent,
+                    reminder_1d_sent=user.reminder_1d_sent,
+                ),
+                marzban_user,
             )
         except aiohttp.ClientResponseError as exc:
             self._logger.warning(
@@ -262,18 +281,27 @@ class SubscriptionService:
                 username,
                 exc.status,
             )
-            return User(
-                telegram_id=user.telegram_id,
-                marzban_username=username,
-                marzban_uuid=user.marzban_uuid,
-                subscription_expires_at=user.subscription_expires_at,
-                subscription_link=user.subscription_link,
-                traffic_limit_gb=user.traffic_limit_gb,
-                is_stale=True,
-                trial_used=user.trial_used,
-                referrer_telegram_id=user.referrer_telegram_id,
-                referral_bonus_applied=user.referral_bonus_applied,
+            return (
+                User(
+                    telegram_id=user.telegram_id,
+                    marzban_username=username,
+                    marzban_uuid=user.marzban_uuid,
+                    subscription_expires_at=user.subscription_expires_at,
+                    subscription_link=user.subscription_link,
+                    traffic_limit_gb=user.traffic_limit_gb,
+                    is_stale=True,
+                    trial_used=user.trial_used,
+                    referrer_telegram_id=user.referrer_telegram_id,
+                    referral_bonus_applied=user.referral_bonus_applied,
+                    reminder_3d_sent=user.reminder_3d_sent,
+                    reminder_1d_sent=user.reminder_1d_sent,
+                ),
+                None,
             )
+
+    async def get_status(self, telegram_id: int) -> User | None:
+        user, _ = await self.get_status_details(telegram_id)
+        return user
 
     def _extract_expire(self, marzban_user: dict[str, object] | None) -> datetime | None:
         if not marzban_user:

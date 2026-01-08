@@ -12,5 +12,5 @@ def build_happ_deeplink(subscription_link: str) -> str:
     parsed = urlparse(subscription_link)
     if not parsed.scheme or not parsed.netloc:
         return ""
-    encoded = quote(subscription_link, safe="")
+    encoded = quote(subscription_link, safe=":/")
     return f"{DEEPLINK_BASE}{encoded}"

@@ -31,6 +31,8 @@ class Database:
                 trial_used INTEGER DEFAULT 0,
                 referrer_telegram_id INTEGER,
                 referral_bonus_applied INTEGER DEFAULT 0,
+                reminder_3d_sent INTEGER DEFAULT 0,
+                reminder_1d_sent INTEGER DEFAULT 0,
                 created_at TEXT DEFAULT CURRENT_TIMESTAMP
             );
 
@@ -82,6 +84,8 @@ class Database:
                 "trial_used": "INTEGER DEFAULT 0",
                 "referrer_telegram_id": "INTEGER",
                 "referral_bonus_applied": "INTEGER DEFAULT 0",
+                "reminder_3d_sent": "INTEGER DEFAULT 0",
+                "reminder_1d_sent": "INTEGER DEFAULT 0",
             },
         )
         await self._ensure_columns(
