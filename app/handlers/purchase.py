@@ -113,7 +113,7 @@ async def _send_access(message: Message, link: str) -> None:
     await message.answer(
         "🛡 DagDev VPN\n"
         "━━━━━━━━━━━━\n"
-        "Your VPN is ready.\n"
-        "Tap the button below to connect.",
+        "Ваш VPN готов.\n"
+        "Нажмите кнопку ниже, чтобы подключиться.",
         reply_markup=keyboard,
     )
