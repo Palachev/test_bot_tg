@@ -80,7 +80,8 @@ def _format_status_text(user: User, marzban_user: dict[str, object] | None) -> s
         extras_text = "\n" + "\n".join(extras)
 
     return (
-        "📊 Статус-дашборд\n"
+        "📊 Статус-дашборд\n" \
+        "⚠️ Тестовый режим ⚠️\n"
         "━━━━━━━━━━━━\n"
         f"Трафик: {traffic_line}\n"
         f"Остаток: {traffic_left_label}\n"
