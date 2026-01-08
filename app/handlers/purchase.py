@@ -42,7 +42,7 @@ async def start_payment(
         )
         await callback.answer()
         return
-    invoice = await payment_service.create_invoice(callback.from_user.id, tariff_code, tariff.price)
+    invoice = await payment_service.create_invoice(callback.from_user.id, tariff_code, amount_minor_units)
     try:
         await callback.message.answer_invoice(
             title="VPN подписка",
@@ -50,7 +50,7 @@ async def start_payment(
             payload=invoice.invoice_id,
             provider_token=settings.payment_provider_key,
             currency=settings.payment_currency,
-            prices=[LabeledPrice(label=tariff.title, amount=int(round(invoice.amount * 100)))],
+            prices=[LabeledPrice(label=tariff.title, amount=invoice.amount_minor)],
         )
     except TelegramBadRequest as exc:
         logger.exception("Failed to create invoice: %s", exc)
@@ -82,29 +82,27 @@ async def handle_successful_payment(
     settings: Settings,
 ) -> None:
     payment = message.successful_payment
-    payload_to_tariff = {
-        "vpn_1m": "m1",
-        "vpn_3m": "m3",
-        "vpn_6m": "m6",
-        "vpn_12m": "m12",
-    }
     invoice_id = payment.invoice_payload
-    tariff_code = payload_to_tariff.get(invoice_id)
-    if not tariff_code:
+    invoice = await payment_repo.get_invoice(invoice_id)
+    if not invoice:
+        logger.error("Payment received for unknown invoice: invoice_id=%s", invoice_id)
+        for admin_id in settings.telegram_admin_ids:
+            await message.bot.send_message(
+                admin_id,
+                "⚠️ Оплата получена, но инвойс не найден.\n"
+                f"Invoice: {invoice_id}",
+            )
         await message.answer("Платеж получен, но тариф не найден. Напиши в поддержку.")
         return
-    await payment_repo.create_invoice(
-        invoice_id,
-        message.from_user.id,
-        tariff_code,
-        float(payment.total_amount) / 100,
-        payment.currency,
-    )
+    if invoice.status in {"paid", "completed", "paid_pending", "failed"}:
+        logger.info("Duplicate payment notification ignored: invoice_id=%s status=%s", invoice_id, invoice.status)
+        return
+    await payment_repo.mark_paid(invoice_id)
     try:
         user = await subscription_service.process_payment_success(invoice_id)
     except Exception as exc:
         logger.exception("Failed to provision after payment: invoice_id=%s", invoice_id)
-        await payment_repo.mark_paid_pending(invoice_id)
+        await payment_repo.mark_paid_pending(invoice_id, str(exc))
         for admin_id in settings.telegram_admin_ids:
             await message.bot.send_message(
                 admin_id,
