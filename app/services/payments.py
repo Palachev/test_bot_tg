@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+from uuid import uuid4
 
 from app.config import Settings
 from app.models.payment import PaymentInvoice
@@ -12,17 +13,30 @@ class PaymentService:
         self.settings = settings
         self.payment_repo = payment_repo
 
-    async def create_invoice(self, user_id: int, tariff_code: str, amount: float) -> PaymentInvoice:
-        invoice_id = self._payload_for_tariff(tariff_code)
+    async def create_invoice(self, user_id: int, tariff_code: str, amount_minor: int) -> PaymentInvoice:
+        invoice_id = self._unique_invoice_id()
+        amount = amount_minor / 100
         payment_url = ""
+        await self.payment_repo.create_invoice(
+            invoice_id=invoice_id,
+            telegram_id=user_id,
+            tariff_code=tariff_code,
+            amount_minor=amount_minor,
+            amount=amount,
+            currency=self.settings.payment_currency,
+        )
         return PaymentInvoice(
             invoice_id=invoice_id,
             user_id=user_id,
             tariff_code=tariff_code,
+            amount_minor=amount_minor,
             amount=amount,
             currency=self.settings.payment_currency,
             payment_url=payment_url,
         )
+
+    def _unique_invoice_id(self) -> str:
+        return f"inv_{uuid4().hex}"
 
     def _payload_for_tariff(self, tariff_code: str) -> str:
         payloads = {
