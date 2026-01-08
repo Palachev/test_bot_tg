@@ -378,6 +378,50 @@ _(опционально)_ 3) **Last-chance**
 
 ---
 
+## Persistency (бот + Marzban) — обязательные volume-mounts
+
+### Telegram-бот (SQLite)
+
+**Где хранится база:** `DATABASE_PATH` (по умолчанию `./bot.db`).  
+В Docker контейнере путь должен быть примонтирован на host volume.
+
+**Пример docker run:**
+
+```
+docker run -d --name vpn-bot \
+  -v /srv/vpn-bot/bot.db:/app/bot.db \
+  -e DATABASE_PATH=/app/bot.db \
+  <image>
+```
+
+**Проверка, что данные в volume:**
+
+```
+docker exec vpn-bot ls -la /app/bot.db
+docker exec vpn-bot sqlite3 /app/bot.db "PRAGMA integrity_check;"
+```
+
+### Marzban (панель)
+
+**Лучшие практики:** хранить БД и конфиги на volume (путь зависит от образа Marzban).  
+После деплоя убедись, что папки с данными в контейнере примонтированы на host.
+
+**Проверка mount'ов и данных:**
+
+```
+docker inspect marzban --format '{{json .Mounts}}' | jq
+docker exec marzban sh -c 'ls -la /var/lib/marzban /opt/marzban /data 2>/dev/null'
+```
+
+**Проверка, что данные переживают restart:**
+
+```
+docker compose down
+docker compose up -d
+```
+
+После поднятия проверь, что пользовательские записи в панели остались.
+
 ## Рекомендуемые “дефолты” под твой кейс
 
 - **Основной профиль:** VLESS + REALITY (TCP)

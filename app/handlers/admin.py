@@ -120,7 +120,11 @@ async def admin_refresh(
         await callback.answer("Нет доступа.", show_alert=True)
         return
     text = await _render_stats(user_repo, payment_repo)
-    await callback.message.edit_text(text, reply_markup=admin_panel_keyboard())
+    try:
+        await callback.message.edit_text(text, reply_markup=admin_panel_keyboard())
+    except TelegramBadRequest as exc:
+        if "message is not modified" not in str(exc):
+            raise
     await callback.answer()
 
 
