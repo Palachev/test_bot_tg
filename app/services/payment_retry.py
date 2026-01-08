@@ -54,7 +54,14 @@ async def _retry_pending(
     max_delay: int,
 ) -> None:
     now = datetime.utcnow()
-    invoices = await payment_repo.list_recoverable()
+    if hasattr(payment_repo, "list_recoverable"):
+        invoices = await payment_repo.list_recoverable()
+    else:
+        invoices = []
+        for invoice_id in await payment_repo.list_pending_invoices():
+            invoice = await payment_repo.get_invoice(invoice_id)
+            if invoice:
+                invoices.append(invoice)
     for invoice in invoices:
         if invoice.attempts >= max_attempts:
             await payment_repo.mark_failed(

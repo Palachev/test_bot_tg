@@ -175,7 +175,7 @@ class PaymentRepository:
         )
         return [row[0] for row in rows]
 
-    async def list_paid_pending(self) -> list[PaymentRecord]:
+    async def list_recoverable(self) -> list[PaymentRecord]:
         rows = await self._db.fetchall(
             """
             SELECT

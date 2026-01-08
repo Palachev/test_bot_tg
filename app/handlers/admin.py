@@ -87,7 +87,14 @@ async def retry_pending(
     if not _is_admin(message.from_user.id, settings):
         await message.answer("Доступ запрещён.")
         return
-    pending = await payment_repo.list_recoverable()
+    if hasattr(payment_repo, "list_recoverable"):
+        pending = await payment_repo.list_recoverable()
+    else:
+        pending = []
+        for invoice_id in await payment_repo.list_pending_invoices():
+            invoice = await payment_repo.get_invoice(invoice_id)
+            if invoice:
+                pending.append(invoice)
     if not pending:
         await message.answer("Нет платежей для повторной выдачи.")
         return
