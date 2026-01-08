@@ -46,7 +46,9 @@ async def start_payment(
     except TelegramBadRequest as exc:
         logger.exception("Failed to create invoice: %s", exc)
         await callback.message.answer(
-            "Не удалось открыть оплату. Проверь токен провайдера Telegram Payments и валюту."
+            "Не удалось открыть оплату. Проверь токен провайдера Telegram Payments "
+            "и валюту. Подробности: "
+            f"{exc.message}"
         )
     await callback.answer()
 

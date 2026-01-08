@@ -27,7 +27,7 @@ class Settings(BaseSettings):
     payment_provider_key: str
     payment_public_key: str
     payment_webhook_secret: str
-    payment_shop_id: str
+    payment_shop_id: str | None = None
     payment_currency: str = "RUB"
     database_path: str = "./bot.db"
     webhook_host: str = "0.0.0.0"
