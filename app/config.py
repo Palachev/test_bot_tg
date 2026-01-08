@@ -8,10 +8,10 @@ from pydantic import field_validator
 
 
 TARIFFS: Dict[str, dict] = {
-    "m1": {"title": "1 месяц", "days": 30, "price": 1},
-    "m3": {"title": "3 месяца", "days": 90, "price": 2},
-    "m6": {"title": "6 месяцев", "days": 180, "price": 4},
-    "m12": {"title": "12 месяцев", "days": 365, "price": 8},
+    "m1": {"title": "1 месяц", "days": 30, "price": 100},
+    "m3": {"title": "3 месяца", "days": 90, "price": 250},
+    "m6": {"title": "6 месяцев", "days": 180, "price": 400},
+    "m12": {"title": "12 месяцев", "days": 365, "price": 1000},
 }
 
 
@@ -27,7 +27,8 @@ class Settings(BaseSettings):
     payment_provider_key: str
     payment_public_key: str
     payment_webhook_secret: str
-    payment_currency: str = "XTR"
+    payment_shop_id: str | None = None
+    payment_currency: str = "RUB"
     database_path: str = "./bot.db"
     webhook_host: str = "0.0.0.0"
     webhook_path: str = "/payment/webhook"
