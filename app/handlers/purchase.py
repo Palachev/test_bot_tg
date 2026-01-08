@@ -50,7 +50,7 @@ async def start_payment(
             payload=invoice.invoice_id,
             provider_token=settings.payment_provider_key,
             currency=settings.payment_currency,
-            prices=[LabeledPrice(label=tariff.title, amount=amount_minor_units)],
+            prices=[LabeledPrice(label=tariff.title, amount=int(round(invoice.amount * 100)))],
         )
     except TelegramBadRequest as exc:
         logger.exception("Failed to create invoice: %s", exc)
