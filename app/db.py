@@ -49,8 +49,12 @@ class Database:
                 telegram_id INTEGER NOT NULL,
                 tariff_code TEXT NOT NULL,
                 amount REAL NOT NULL,
+                amount_minor INTEGER,
                 currency TEXT NOT NULL,
                 status TEXT NOT NULL,
+                attempts INTEGER DEFAULT 0,
+                last_error TEXT,
+                subscription_link TEXT,
                 created_at TEXT DEFAULT CURRENT_TIMESTAMP,
                 updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE(invoice_id, status)
@@ -74,6 +78,7 @@ class Database:
             """
         )
         await self._ensure_user_columns()
+        await self._ensure_payment_columns()
         await self._conn.commit()
 
     async def _ensure_user_columns(self) -> None:
@@ -107,6 +112,18 @@ class Database:
                 await self._conn.execute(
                     f"ALTER TABLE {table} ADD COLUMN {name} {definition}"
                 )
+
+    async def _ensure_payment_columns(self) -> None:
+        assert self._conn is not None
+        await self._ensure_columns(
+            "payments",
+            {
+                "amount_minor": "INTEGER",
+                "attempts": "INTEGER DEFAULT 0",
+                "last_error": "TEXT",
+                "subscription_link": "TEXT",
+            },
+        )
 
     async def execute(self, query: str, *args: Any) -> None:
         assert self._conn is not None
