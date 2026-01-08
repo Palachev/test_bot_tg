@@ -192,7 +192,7 @@ class PaymentRepository:
                 created_at,
                 updated_at
             FROM payments
-            WHERE status = 'paid_pending'
+            WHERE status IN ('paid', 'paid_pending')
             ORDER BY updated_at ASC
             """
         )

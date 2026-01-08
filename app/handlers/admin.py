@@ -87,15 +87,15 @@ async def retry_pending(
     if not _is_admin(message.from_user.id, settings):
         await message.answer("Доступ запрещён.")
         return
-    pending = await payment_repo.list_pending_invoices()
+    pending = await payment_repo.list_recoverable()
     if not pending:
         await message.answer("Нет платежей для повторной выдачи.")
         return
     success = 0
     failed = 0
-    for invoice_id in pending:
+    for invoice in pending:
         try:
-            user = await subscription_service.process_payment_success(invoice_id)
+            user = await subscription_service.process_payment_success(invoice.invoice_id)
             if user:
                 success += 1
             else:
